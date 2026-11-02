@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Личный бюджет</title>
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--line:#334155;--txt:#e2e8f0;--mut:#94a3b8;--acc:#6366f1;--ok:#22c55e;--bad:#ef4444;--in:#0b1220}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+header{padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:1px solid var(--line)}
+h1{font-size:20px;margin:0}
+h3{margin:0 0 10px;font-size:16px}
+nav{display:flex;gap:6px;flex-wrap:wrap;padding:12px 20px}
+nav button{background:var(--card);color:var(--mut);border:1px solid var(--line);padding:8px 14px;border-radius:10px;cursor:pointer}
+nav button.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+main{padding:0 20px 40px}
+.page{display:none}
+.page.show{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.stat .l{color:var(--mut);font-size:13px}
+.stat .v{font-size:22px;font-weight:700;margin-top:4px}
+.pos{color:var(--ok)}
+.neg{color:var(--bad)}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end}
+label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:4px}
+input,select{background:var(--in);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:9px;font-size:14px;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--acc)}
+select:disabled{opacity:.5}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px;display:inline-block}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+.btn.danger{background:var(--bad)}
+.btn.small{padding:5px 10px;font-size:12px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase}
+td.num,th.num{text-align:right;white-space:nowrap}
+td input{padding:6px}
+.bar{height:8px;background:var(--in);border-radius:6px;overflow:hidden;min-width:80px}
+.bar>div{height:100%;background:var(--ok)}
+.bar>div.over{background:var(--bad)}
+.muted{color:var(--mut);font-size:13px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toolbar input[type=month]{width:auto}
+.scroll{overflow-x:auto}
+.empty{color:var(--mut);padding:14px 0}
+.cat-row{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px}
+.cat-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sub-list{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}
+.sub-pill{display:inline-flex;align-items:center;gap:6px;background:var(--in);border:1px solid var(--line);border-radius:999px;padding:5px 8px;color:var(--txt)}
+.sub-add{display:flex;gap:6px;align-items:center}
+.sub-add input{flex:1;min-width:140px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.calc-wrap{align-self:end;position:relative}.calc-pad{display:grid;grid-template-columns:repeat(4,42px);gap:5px;margin-top:6px;padding:8px;background:var(--in);border:1px solid var(--line);border-radius:10px}.calc-pad button{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:8px 4px;cursor:pointer}.calc-pad button.equals{background:var(--acc);border-color:var(--acc)}
+@media(max-width:700px){.two{grid-template-columns:1fr}}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--in);border:1px solid var(--line);padding:10px 16px;border-radius:10px;opacity:0;transition:.3s;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>Личный бюджет</h1>
+  <div class="toolbar">
+    <input type="month" id="month">
+    <button class="btn ghost small" id="expBtn">Экспорт</button>
+    <label class="btn ghost small" style="cursor:pointer">Импорт<input type="file" id="impFile" accept="application/json" hidden></label>
+  </div>
+</header>
+<nav id="nav"></nav>
+<main>
+
+<section class="page" id="p-home">
+  <div class="grid">
+    <div class="card stat"><div class="l">Доходы (факт)</div><div class="v pos" id="hInc">0</div></div>
+    <div class="card stat"><div class="l">Расходы (факт)</div><div class="v neg" id="hExp">0</div></div>
+    <div class="card stat"><div class="l">Остаток за месяц</div><div class="v" id="hBal">0</div></div>
+    <div class="card stat"><div class="l">Сколько денег сейчас</div><div class="v" id="hNow">0</div></div>
+    <div class="card stat"><div class="l">Платежи по кредитам в месяц</div><div class="v" id="hLoan">0</div></div>
+    <div class="card stat"><div class="l">Долги всего</div><div class="v" id="hDebt">0</div></div>
+  </div>
+  <div class="two">
+    <div class="card"><h3>Перерасход по категориям</h3><div id="hOver" class="muted"></div></div>
+    <div class="card"><h3>Платежи по кредитам</h3><div id="hUp" class="muted"></div></div>
+  </div>
+</section>
+
+<section class="page" id="p-budget">
+  <div class="card">
+    <div class="toolbar" style="margin-bottom:12px">
+      <label style="min-width:220px">Начальный бюджет на начало месяца, ₽<input type="number" id="bOpening" min="0" step="100" placeholder="Сколько денег уже есть"></label>
+      <label style="min-width:220px">Плановый доход на месяц<input type="number" id="bIncPlan" min="0" step="100" placeholder="0"></label>
+      <div class="stat"><div class="l">Доступно на месяц (начальный бюджет + плановый доход)</div><div class="v pos" id="bAvail">0 ₽</div></div>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Категория расходов</th><th class="num">План</th><th class="num">Факт</th><th class="num">Остаток</th><th>Использовано</th></tr></thead>
+        <tbody id="bBody"></tbody>
+        <tfoot><tr><th>Итого</th><th class="num" id="bPlanT"></th><th class="num" id="bFactT"></th><th class="num" id="bRemT"></th><th></th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="p-exp">
+  <div class="card">
+    <h3>Новый расход</h3>
+    <div class="form">
+      <label>Дата<input type="date" id="eDate"></label>
+      <label>Категория<select id="eCat"></select></label>
+      <label>Подкатегория<select id="eSub"></select></label>
+      <label>Сумма, ₽<input type="text" id="eAmt" inputmode="decimal" placeholder="0 или выражение, например 1200+350" autocomplete="off"></label>
+      <div class="calc-wrap"><button class="btn ghost small calc-toggle" type="button" data-target="eCalc">Калькулятор</button><div class="calc-pad" id="eCalc" hidden></div></div>
+      <label>Комментарий<input type="text" id="eCom" placeholder="необязательно"></label>
+      <button class="btn" id="eAdd">Добавить</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="toolbar" style="justify-content:space-between;margin-bottom:12px">
+      <label style="min-width:220px">Фильтр по категории<select id="eFilter"></select></label>
+      <div><span class="muted">Итого за период: </span><b id="expTotal">0</b></div>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Дата</th><th>Категория</th><th>Подкатегория</th><th class="num">Сумма</th><th>Комментарий</th><th></th></tr></thead>
+        <tbody id="expList"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="p-inc">
+  <div class="card">
+    <h3>Новый доход</h3>
+    <div class="form">
+      <label>Дата<input type="date" id="iDate"></label>
+      <label>Категория<select id="iCat"></select></label>
+      <label>Подкатегория<select id="iSub"></select></label>
+      <label>Сумма, ₽<input type="text" id="iAmt" inputmode="decimal" placeholder="0 или выражение, например 1200+350" autocomplete="off"></label>
+      <div class="calc-wrap"><button class="btn ghost small calc-toggle" type="button" data-target="iCalc">Калькулятор</button><div class="calc-pad" id="iCalc" hidden></div></div>
+      <label>Комментарий<input type="text" id="iCom" placeholder="необязательно"></label>
+      <button class="btn" id="iAdd">Добавить</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Дата</th><th>Категория</th><th>Подкатегория</th><th class="num">Сумма</th><th>Комментарий</th><th></th></tr></thead>
+        <tbody id="incList"></tbody>
+        <tfoot><tr><th colspan="3">Итого за период</th><th class="num" id="incTotal"></th><th colspan="2"></th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="p-debt">
+  <div class="card">
+    <h3>Новый долг</h3>
+    <div class="form">
+      <label>Название долга<input type="text" id="dName" placeholder="например, банк"></label>
+      <label>Сумма долга, ₽<input type="number" id="dSum" min="0" step="0.01" placeholder="0"></label>
+      <label>Срок возврата<input type="date" id="dTerm"></label>
+      <button class="btn" id="dAdd">Добавить</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Название</th><th class="num">Сумма</th><th>Срок возврата</th><th>Осталось</th><th></th></tr></thead>
+        <tbody id="debtList"></tbody>
+        <tfoot><tr><th>Итого</th><th class="num" id="debtTotal"></th><th colspan="3"></th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="p-cats">
+  <div class="two">
+    <div class="card">
+      <h3>Категории расходов</h3>
+      <div class="form" style="grid-template-columns:1fr auto">
+        <label>Новая категория<input id="newExpCat" type="text" placeholder="например, Здоровье"></label>
+        <button class="btn" id="addExpCat">Добавить</button>
+      </div>
+      <div id="catManageExp"></div>
+    </div>
+    <div class="card">
+      <h3>Категории доходов</h3>
+      <div class="form" style="grid-template-columns:1fr auto">
+        <label>Новая категория<input id="newIncCat" type="text" placeholder="например, Подработка"></label>
+        <button class="btn" id="addIncCat">Добавить</button>
+      </div>
+      <div id="catManageInc"></div>
+    </div>
+  </div>
+  <div class="card muted">Удаление категории не удаляет уже записанные операции: они сохраняются в истории, но категория больше не будет доступна для новых записей.</div>
+</section>
+
+<section class="page" id="p-loan">
+  <div class="card">
+    <h3>Новый кредит</h3>
+    <div class="form">
+      <label>Название кредита<input type="text" id="lName" placeholder="например, карта"></label>
+      <label>Сумма кредита, ₽<input type="number" id="lSum" min="0" step="0.01" placeholder="0"></label>
+      <label>Ежемесячный платёж, ₽<input type="number" id="lPay" min="0" step="0.01" placeholder="0"></label>
+      <label>Дата платежа (день месяца)<input type="number" id="lDay" min="1" max="31" placeholder="1-31"></label>
+      <button class="btn" id="lAdd">Добавить</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Название</th><th class="num">Сумма</th><th class="num">Платёж в месяц</th><th>Дата платежа</th><th></th></tr></thead>
+        <tbody id="loanList"></tbody>
+        <tfoot><tr><th>Итого в месяц</th><th></th><th class="num" id="loanTotal"></th><th colspan="2"></th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+<div id="toast"></div>
+
+<script>
+const EXP = {
+  "Кальян":["части кальяна","табаки","угли"],
+  "Л/Н":["Еда вне дома","Отдых нас с друзьями"],
+  "Лиза":[],
+  "Лиза❤️":["WB🟣","алкоголь Лизы","еда","красота","медикаменты","энергетики"],
+  "Машины":["бенз гольф🛑","бенз солик😈","мойка гольф","парковка","штрафы","Запчасти гольф","Запчасти солик"],
+  "Машундель❤️":["бытовые предметы","досуг","еда","игрушки","медицина","памперсок","праздники","подарки"],
+  "Ненужное":["1энергетики","алкоголь","вода!","отдых с друзьями","попить/еда","попить/еда на работу"],
+  "Нужное моё":["Барбер","баланс","здоровье","инструменты","книги","одежда","подписки мои","техника"],
+  "Житуха":["ЖКХ","Лиза доставка продуктов","бытовые товары","вода","интернет","мясо","медикаменты","нужное в дом","покупная еда","подписки","продукты","фрукты/овощи","без чего можно обойтись"],
+  "Отпуск":[],
+  "Подарки":["Лизы родня","моя родня"],
+  "Питание":["завтраки","обеды"],
+  "Работа":["Подарки","самокат на работу"],
+  "Расходы которые забыл внести":[],
+  "Родня":[],
+  "Фотосессии":[]
+};
+const INC = {
+  "Заработали":["ЗП","продал что-то"],
+  "Подработки":[],
+  "Прочее":[]
+};
+const PAGES = [["home","Главная"],["budget","Бюджет"],["exp","Расходы"],["inc","Доходы"],["debt","Долги"],["loan","Кредиты"],["cats","Категории"]];
+const KEY = "personal-budget-v2";
+const $ = id => document.getElementById(id);
+let S = load();
+
+function load(){
+  try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; }
+}
+function ensure(){
+  if (!S || typeof S !== "object" || Array.isArray(S)) S = {};
+  S.exp = Array.isArray(S.exp) ? S.exp : [];
+  S.inc = Array.isArray(S.inc) ? S.inc : [];
+  S.debts = Array.isArray(S.debts) ? S.debts : [];
+  S.loans = Array.isArray(S.loans) ? S.loans : [];
+  S.budget = S.budget && typeof S.budget === "object" && !Array.isArray(S.budget) ? S.budget : {};
+  S.categories = S.categories && typeof S.categories === "object" && !Array.isArray(S.categories) ? normalizeMap(S.categories) : cloneMap(EXP);
+  S.incomeCategories = S.incomeCategories && typeof S.incomeCategories === "object" && !Array.isArray(S.incomeCategories) ? normalizeMap(S.incomeCategories) : cloneMap(INC);
+  Object.keys(S.budget).forEach(m => {
+    if (!S.budget[m] || typeof S.budget[m] !== "object" || Array.isArray(S.budget[m])) S.budget[m] = {};
+  });
+}
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){}
+}
+function cloneMap(map){
+  return Object.fromEntries(Object.entries(map).map(([k, v]) => [k, Array.isArray(v) ? [...v] : []]));
+}
+function normalizeMap(map){
+  const out = {};
+  Object.keys(map).forEach(k => {
+    const cat = String(k).trim();
+    if (!cat) return;
+    const values = Array.isArray(map[k]) ? map[k].map(x => String(x).trim()).filter(Boolean) : [];
+    out[cat] = [...new Set(values)];
+  });
+  return out;
+}
+function expMap(){ return S.categories; }
+function incMap(){ return S.incomeCategories; }
+function refreshCategorySelectors(){
+  fillCats($("eCat"), expMap());
+  fillSub($("eCat"), $("eSub"), expMap());
+  fillCats($("iCat"), incMap());
+  fillSub($("iCat"), $("iSub"), incMap());
+  const current = $("eFilter").value;
+  fillCats($("eFilter"), expMap(), true);
+  if (Object.prototype.hasOwnProperty.call(expMap(), current)) $("eFilter").value = current;
+}
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function fmt(n){
+  return Number(n || 0).toLocaleString("ru-RU", {maximumFractionDigits: 2}) + " ₽";
+}
+function uid(){
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+function todayStr(){
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 1800);
+}
+function month(){ return $("month").value; }
+function sum(arr, key){ return (Array.isArray(arr) ? arr : []).reduce((s, x) => s + (Number(x && x[key]) || 0), 0); }
+function inMonth(x, m){ return !!x && typeof x.date === "string" && !!m && x.date.startsWith(m); }
+function planOf(m, c){ return Number(((S.budget[m] || {})[c]) || 0); }
+function factOf(m, c){ return sum(S.exp.filter(x => inMonth(x, m) && x.cat === c), "amt"); }
+
+function fillCats(sel, map, keepFirst){
+  const first = keepFirst ? '<option value="">Все категории</option>' : '<option value="">Выберите категорию</option>';
+  sel.innerHTML = first + Object.keys(map)
+    .map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  sel.value = "";
+}
+function fillSub(catSel, subSel, map){
+  const cat = catSel.value;
+  const subs = map[cat] || [];
+  subSel.value = "";
+  if (!cat){
+    subSel.innerHTML = '<option value="">Сначала выберите категорию</option>';
+    subSel.disabled = true;
+    return;
+  }
+  if (!subs.length){
+    subSel.innerHTML = '<option value="">— без подкатегории —</option>';
+    subSel.disabled = true;
+    return;
+  }
+  subSel.disabled = false;
+  subSel.innerHTML = '<option value="">Выберите подкатегорию</option>' +
+    subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
+}
+
+function calcValue(raw){
+  const s = String(raw || "").replace(/,/g, ".").replace(/[×x]/gi, "*").replace(/[÷]/g, "/").replace(/[−–]/g, "-").replace(/\s+/g, "");
+  if (!s || !/^[0-9.+*/()\-]+$/.test(s)) return NaN;
+  let i = 0;
+  function expr(){ let v = term(); while (s[i] === "+" || s[i] === "-"){ const op=s[i++], r=term(); v=op==="+"?v+r:v-r; } return v; }
+  function term(){ let v = atom(); while (s[i] === "*" || s[i] === "/"){ const op=s[i++], r=atom(); if(op==="/"&&r===0) throw Error("div0"); v=op==="*"?v*r:v/r; } return v; }
+  function atom(){ if(s[i]==="+"){i++;return atom();} if(s[i]==="-"){i++;return -atom();} if(s[i]==="("){i++;const v=expr();if(s[i++]!==")")throw Error("paren");return v;} const m=s.slice(i).match(/^(?:\d+\.?\d*|\.\d+)/); if(!m)throw Error("number"); i+=m[0].length; return Number(m[0]); }
+  try { const v=expr(); return i===s.length&&Number.isFinite(v)?v:NaN; } catch(e){ return NaN; }
+}
+function initCalculators(){
+  const keys=["7","8","9","÷","4","5","6","×","1","2","3","−","0",".","(",")","C","⌫","+","="];
+  document.querySelectorAll(".calc-pad").forEach(p=>{p.innerHTML=keys.map(k=>`<button type="button" class="${k==="="?"equals":""}" data-key="${k}">${k}</button>`).join("");});
+  document.querySelectorAll(".calc-toggle").forEach(b=>b.addEventListener("click",()=>{const p=$(b.dataset.target);p.hidden=!p.hidden;}));
+  document.querySelectorAll(".calc-pad").forEach(p=>p.addEventListener("click",e=>{
+    const k=e.target.dataset.key;if(!k)return;const input=$(p.id==="eCalc"?"eAmt":"iAmt");
+    if(k==="C")input.value="";else if(k==="⌫")input.value=input.value.slice(0,-1);else if(k==="="){const v=calcValue(input.value);if(Number.isFinite(v)&&v>0)input.value=String(Number(v.toFixed(2)));else toast("Проверьте выражение");}else input.value+=k;
+    input.focus();
+  }));
+}
+function addExp(){
+  const date = $("eDate").value, cat = $("eCat").value;
+  const sub = $("eSub").disabled ? "" : $("eSub").value;
+  const amt = calcValue($("eAmt").value);
+  if (!cat) return toast("Сначала выберите категорию");
+  if (!date) return toast("Укажите дату");
+  if (!(amt > 0)) return toast("Укажите сумму");
+  if (!sub && (expMap()[cat] || []).length) return toast("Выберите подкатегорию");
+  S.exp.push({id: uid(), date, cat, sub, amt, com: $("eCom").value.trim()});
+  save(); $("eAmt").value = ""; $("eCom").value = "";
+  toast("Расход добавлен"); render();
+}
+function addInc(){
+  const date = $("iDate").value, cat = $("iCat").value;
+  const sub = $("iSub").disabled ? "" : $("iSub").value;
+  const amt = calcValue($("iAmt").value);
+  if (!cat) return toast("Сначала выберите категорию");
+  if (!date) return toast("Укажите дату");
+  if (!(amt > 0)) return toast("Укажите сумму");
+  if (!sub && (incMap()[cat] || []).length) return toast("Выберите подкатегорию");
+  S.inc.push({id: uid(), date, cat, sub, amt, com: $("iCom").value.trim()});
+  save(); $("iAmt").value = ""; $("iCom").value = "";
+  toast("Доход добавлен"); render();
+}
+function addDebt(){
+  const name = $("dName").value.trim(), sum_ = parseFloat($("dSum").value), term = $("dTerm").value;
+  if (!name) return toast("Укажите название");
+  if (!(sum_ > 0)) return toast("Укажите сумму");
+  if (!term) return toast("Укажите срок возврата");
+  S.debts.push({id: uid(), name, sum: sum_, term});
+  save(); $("dName").value = ""; $("dSum").value = ""; $("dTerm").value = "";
+  toast("Долг добавлен"); render();
+}
+function addLoan(){
+  const name = $("lName").value.trim(), sum_ = parseFloat($("lSum").value);
+  const pay = parseFloat($("lPay").value), day = parseInt($("lDay").value, 10);
+  if (!name) return toast("Укажите название");
+  if (!(sum_ > 0)) return toast("Укажите сумму кредита");
+  if (!(pay > 0)) return toast("Укажите ежемесячный платёж");
+  if (!(day >= 1 && day <= 31)) return toast("День платежа от 1 до 31");
+  S.loans.push({id: uid(), name, sum: sum_, pay, day});
+  save(); ["lName","lSum","lPay","lDay"].forEach(i => $(i).value = "");
+  toast("Кредит добавлен"); render();
+}
+function del(kind, id){
+  S[kind] = S[kind].filter(x => x.id !== id);
+  save(); render();
+}
+function addCategory(kind, value){
+  const map = kind === "exp" ? expMap() : incMap();
+  const name = String(value || "").trim();
+  if (!name) return toast("Введите название категории");
+  if (map[name]) return toast("Такая категория уже есть");
+  map[name] = [];
+  save(); refreshCategorySelectors(); render(); toast("Категория добавлена");
+}
+function removeCategory(kind, cat){
+  const map = kind === "exp" ? expMap() : incMap();
+  if (!Object.prototype.hasOwnProperty.call(map, cat)) return;
+  delete map[cat];
+  save(); refreshCategorySelectors(); render(); toast("Категория удалена");
+}
+function addSubcategory(kind, cat, value){
+  const map = kind === "exp" ? expMap() : incMap();
+  const sub = String(value || "").trim();
+  if (!map[cat]) return toast("Категория не найдена");
+  if (!sub) return toast("Введите название подкатегории");
+  if (map[cat].includes(sub)) return toast("Такая подкатегория уже есть");
+  map[cat].push(sub);
+  save(); refreshCategorySelectors(); render(); toast("Подкатегория добавлена");
+}
+function removeSubcategory(kind, cat, sub){
+  const map = kind === "exp" ? expMap() : incMap();
+  if (!map[cat]) return;
+  map[cat] = map[cat].filter(x => x !== sub);
+  save(); refreshCategorySelectors(); render(); toast("Подкатегория удалена");
+}
+function renderCategoryManager(){
+  const draw = (map, kind) => Object.keys(map).length ? Object.keys(map).map(cat => {
+    const subs = map[cat] || [];
+    return `<div class="cat-row"><div class="cat-head"><b>${esc(cat)}</b><button class="btn danger small" data-action="delete-category" data-kind="${kind}" data-cat="${esc(cat)}">Удалить</button></div>
+      <div class="sub-list">${subs.length ? subs.map(sub => `<span class="sub-pill">${esc(sub)} <button class="btn danger small" data-action="delete-subcategory" data-kind="${kind}" data-cat="${esc(cat)}" data-sub="${esc(sub)}">×</button></span>`).join("") : '<span class="muted">Подкатегорий нет</span>'}</div>
+      <div class="sub-add"><input type="text" placeholder="Новая подкатегория"><button class="btn small" data-action="add-subcategory" data-kind="${kind}" data-cat="${esc(cat)}">Добавить</button></div></div>`;
+  }).join("") : '<div class="empty">Категорий пока нет</div>';
+  $("catManageExp").innerHTML = draw(expMap(), "exp");
+  $("catManageInc").innerHTML = draw(incMap(), "inc");
+}
+window.del = del;
+
+function renderHome(m){
+  const inc = sum(S.inc.filter(x => inMonth(x, m)), "amt");
+  const exp = sum(S.exp.filter(x => inMonth(x, m)), "amt");
+  $("hInc").textContent = fmt(inc);
+  $("hExp").textContent = fmt(exp);
+  const bal = inc - exp;
+  $("hBal").textContent = fmt(bal);
+  $("hBal").className = "v " + (bal >= 0 ? "pos" : "neg");
+  const opening = Number((S.budget[m] || {}).__opening || 0);
+  const now = opening + inc - exp;
+  $("hNow").textContent = fmt(now);
+  $("hNow").className = "v " + (now >= 0 ? "pos" : "neg");
+  $("hLoan").textContent = fmt(sum(S.loans, "pay"));
+  $("hDebt").textContent = fmt(sum(S.debts, "sum"));
+  const over = Object.keys(expMap()).map(c => ({c, plan: planOf(m, c), fact: factOf(m, c)}))
+    .filter(x => x.plan > 0 && x.fact > x.plan);
+  $("hOver").innerHTML = over.length
+    ? over.map(x => `<div>${esc(x.c)}: факт ${fmt(x.fact)}, план ${fmt(x.plan)} <span class="neg">(+${fmt(x.fact - x.plan)})</span></div>`).join("")
+    : "Перерасходов нет (или план по категориям не задан).";
+  const loans = S.loans.slice().sort((a, b) => a.day - b.day);
+  $("hUp").innerHTML = loans.length
+    ? loans.map(l => `<div>${l.day}-го числа: ${esc(l.name)} — ${fmt(l.pay)}</div>`).join("")
+    : "Кредитов пока нет.";
+}
+
+function renderBudget(m){
+  $("bOpening").value = (S.budget[m] || {}).__opening || "";
+  $("bIncPlan").value = (S.budget[m] || {}).__inc || "";
+  $("bAvail").textContent = fmt(Number((S.budget[m] || {}).__opening || 0) + Number((S.budget[m] || {}).__inc || 0));
+  let pT = 0, fT = 0, rT = 0;
+  $("bBody").innerHTML = Object.keys(expMap()).map(c => {
+    const plan = planOf(m, c), fact = factOf(m, c), rem = plan - fact;
+    pT += plan; fT += fact; rT += rem;
+    const pct = plan > 0 ? Math.min(100, fact / plan * 100) : (fact > 0 ? 100 : 0);
+    return `<tr>
+      <td>${esc(c)}</td>
+      <td class="num"><input type="number" min="0" step="100" class="bp" data-c="${esc(c)}" value="${plan || ""}" style="width:120px;text-align:right"></td>
+      <td class="num">${fmt(fact)}</td>
+      <td class="num ${rem < 0 ? "neg" : "pos"}">${fmt(rem)}</td>
+      <td><div class="bar"><div class="${fact > plan ? "over" : ""}" style="width:${pct}%"></div></div></td>
+    </tr>`;
+  }).join("");
+  $("bPlanT").textContent = fmt(pT);
+  $("bFactT").textContent = fmt(fT);
+  $("bRemT").textContent = fmt(rT);
+}
+
+function renderExp(m){
+  const f = $("eFilter").value;
+  const rows = S.exp.filter(x => inMonth(x, m) && (!f || x.cat === f)).sort((a, b) => b.date.localeCompare(a.date));
+  $("expList").innerHTML = rows.length ? rows.map(x => `<tr>
+      <td>${esc(x.date)}</td><td>${esc(x.cat)}</td><td>${esc(x.sub || "—")}</td>
+      <td class="num">${fmt(x.amt)}</td><td>${esc(x.com)}</td>
+      <td><button class="btn danger small" onclick="del('exp','${x.id}')">×</button></td></tr>`).join("")
+    : '<tr><td colspan="6" class="empty">Расходов за период нет</td></tr>';
+  $("expTotal").textContent = fmt(sum(rows, "amt"));
+}
+
+function renderInc(m){
+  const rows = S.inc.filter(x => inMonth(x, m)).sort((a, b) => b.date.localeCompare(a.date));
+  $("incList").innerHTML = rows.length ? rows.map(x => `<tr>
+      <td>${esc(x.date)}</td><td>${esc(x.cat)}</td><td>${esc(x.sub || "—")}</td>
+      <td class="num">${fmt(x.amt)}</td><td>${esc(x.com)}</td>
+      <td><button class="btn danger small" onclick="del('inc','${x.id}')">×</button></td></tr>`).join("")
+    : '<tr><td colspan="6" class="empty">Доходов за период нет</td></tr>';
+  $("incTotal").textContent = fmt(sum(rows, "amt"));
+}
+
+function renderDebt(){
+  const today = new Date(todayStr());
+  $("debtList").innerHTML = S.debts.length ? S.debts.map(d => {
+    let left = "—";
+    if (d.term){
+      const days = Math.round((new Date(d.term) - today) / 86400000);
+      left = days >= 0 ? days + " дн." : '<span class="neg">просрочен на ' + (-days) + " дн.</span>";
+    }
+    return `<tr><td>${esc(d.name)}</td><td class="num">${fmt(d.sum)}</td><td>${esc(d.term || "—")}</td>
+      <td>${left}</td><td><button class="btn danger small" onclick="del('debts','${d.id}')">×</button></td></tr>`;
+  }).join("") : '<tr><td colspan="5" class="empty">Долгов нет</td></tr>';
+  $("debtTotal").textContent = fmt(sum(S.debts, "sum"));
+}
+
+function renderLoan(){
+  const rows = S.loans.slice().sort((a, b) => a.day - b.day);
+  $("loanList").innerHTML = rows.length ? rows.map(l => `<tr>
+      <td>${esc(l.name)}</td><td class="num">${fmt(l.sum)}</td><td class="num">${fmt(l.pay)}</td>
+      <td>${l.day}-го числа</td><td><button class="btn danger small" onclick="del('loans','${l.id}')">×</button></td></tr>`).join("")
+    : '<tr><td colspan="5" class="empty">Кредитов нет</td></tr>';
+  $("loanTotal").textContent = fmt(sum(S.loans, "pay"));
+}
+
+function render(){
+  const m = month();
+  renderHome(m);
+  renderBudget(m);
+  renderExp(m);
+  renderInc(m);
+  renderDebt();
+  renderLoan();
+  renderCategoryManager();
+}
+
+function show(p){
+  document.querySelectorAll(".page").forEach(x => x.classList.toggle("show", x.id === "p-" + p));
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.p === p));
+  render();
+}
+
+function exportData(){
+  const blob = new Blob([JSON.stringify(S, null, 2)], {type: "application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "budget-" + month() + ".json";
+  a.click();
+}
+
+function boot(){
+  ensure();
+  $("nav").innerHTML = PAGES.map(([p, t]) => `<button data-p="${p}">${t}</button>`).join("");
+  $("nav").addEventListener("click", e => { if (e.target.dataset.p) show(e.target.dataset.p); });
+
+  $("month").value = todayStr().slice(0, 7);
+  $("eDate").value = todayStr();
+  $("iDate").value = todayStr();
+
+  refreshCategorySelectors();
+  initCalculators();
+  $("eCat").addEventListener("change", () => {
+    fillSub($("eCat"), $("eSub"), expMap());
+  });
+
+  $("iCat").addEventListener("change", () => {
+    fillSub($("iCat"), $("iSub"), incMap());
+  });
+  $("eFilter").addEventListener("change", render);
+  $("addExpCat").onclick = () => { const el = $("newExpCat"); addCategory("exp", el.value); el.value = ""; };
+  $("addIncCat").onclick = () => { const el = $("newIncCat"); addCategory("inc", el.value); el.value = ""; };
+  [$("catManageExp"), $("catManageInc")].forEach(box => box.addEventListener("click", e => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    const kind = btn.dataset.kind, cat = btn.dataset.cat;
+    if (btn.dataset.action === "delete-category") removeCategory(kind, cat);
+    if (btn.dataset.action === "delete-subcategory") removeSubcategory(kind, cat, btn.dataset.sub);
+    if (btn.dataset.action === "add-subcategory") {
+      const input = btn.closest(".sub-add").querySelector("input");
+      addSubcategory(kind, cat, input.value); input.value = "";
+    }
+  }));
+
+  $("month").addEventListener("change", render);
+  $("eAdd").onclick = addExp;
+  $("iAdd").onclick = addInc;
+  $("dAdd").onclick = addDebt;
+  $("lAdd").onclick = addLoan;
+
+  $("bBody").addEventListener("change", e => {
+    if (!e.target.classList.contains("bp")) return;
+    const m = month();
+    S.budget[m] = S.budget[m] || {};
+    S.budget[m][e.target.dataset.c] = parseFloat(e.target.value) || 0;
+    save(); render();
+  });
+  $("bOpening").addEventListener("change", e => {
+    const m = month();
+    S.budget[m] = S.budget[m] || {};
+    S.budget[m].__opening = parseFloat(e.target.value) || 0;
+    save();
+    render();
+  });
+  $("bIncPlan").addEventListener("change", e => {
+    const m = month();
+    S.budget[m] = S.budget[m] || {};
+    S.budget[m].__inc = parseFloat(e.target.value) || 0;
+    save();
+    renderBudget(m);
+  });
+
+  $("expBtn").onclick = exportData;
+  $("impFile").addEventListener("change", e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    f.text().then(t => {
+      const imported = JSON.parse(t);
+      if (!imported || typeof imported !== "object" || Array.isArray(imported)) throw new Error("invalid");
+      S = imported;
+      ensure(); save(); render(); toast("Данные импортированы");
+    }).catch(() => toast("Не удалось прочитать файл: нужен JSON-экспорт приложения"));
+    e.target.value = "";
+  });
+
+  show("home");
+}
+boot();
+</script>
+</body>
+</html>
